@@ -1,0 +1,80 @@
+from langchain.llms import OpenAI
+from langchain.llms import TextEmbedding
+from langchain.llms import VectorstoreIndexer
+from langchain.llms import QnA
+
+# Replace with your credentials and database details
+OPENAI_API_KEY = "YOUR_OPENAI_API_KEY"
+POSTGRES_HOST = "YOUR_POSTGRES_HOST"
+POSTGRES_PORT = 5432
+POSTGRES_USER = "YOUR_POSTGRES_USER"
+POSTGRES_PASSWORD = "YOUR_POSTGRES_PASSWORD"
+POSTGRES_DATABASE = "YOUR_POSTGRES_DATABASE"
+VECTORSTORE_URL = "http://localhost:8080"
+
+# Connect to Postgres
+conn = psycopg2.connect(
+    host=POSTGRES_HOST,
+    port=POSTGRES_PORT,
+    user=POSTGRES_USER,
+    password=POSTGRES_PASSWORD,
+    database=POSTGRES_DATABASE
+)
+
+# Define functions for processing PDF and storing data
+def process_pdf(pdf_path):
+  with open(pdf_path, 'rb') as f:
+    reader = PyPDF2.PdfReader(f)
+    text = ""
+    for page in reader.pages:
+      text += page.extract_text()
+  return text
+
+def store_data(text, embedding):
+  cursor = conn.cursor()
+  cursor.execute("""INSERT INTO documents (text, embedding) VALUES (%s, %s)""", (text, embedding))
+  conn.commit()
+  cursor.close()
+
+# Initialize Langchain components
+openai = OpenAI(api_key=OPENAI_API_KEY)
+text_embedding = TextEmbedding(openai)
+indexer = VectorstoreIndexer(url=VECTORSTORE_URL, collection="documents")
+qna = QnA(openai)
+
+# Define function for uploading and processing PDF
+def upload_and_process(pdf_file):
+  text = process_pdf(pdf_file.name)
+  embedding = text_embedding.encode(text)
+  store_data(text, embedding)
+  indexer.add(text, embedding)
+  return text
+
+# Optional: Streamlit integration for user interface
+# (Requires Streamlit library)
+if __name__ == "__main__":
+  import streamlit as st
+
+  uploaded_file = st.file_uploader("Upload PDF")
+  if uploaded_file is not None:
+    processed_text = upload_and_process(uploaded_file)
+    st.write("Processed Text:")
+    st.write(processed_text)
+    question = st.text_input("Ask a question about the document")
+    if question:
+      answer = qna.answer(question, documents=[processed_text])
+      st.write("Answer:")
+      st.write(answer)
+
+
+
+from sentence_transformers import SentenceTransformer
+
+# Load a pre-trained sentence transformer model
+model_name = "all-mpnet-base-v2"
+sentence_transformer = SentenceTransformer(model_name)
+
+# Create Langchain TextEmbedding object
+text_embedding = TextEmbedding(model=sentence_transformer)
+
+# Rest of your Langchain code using text_embedding for processing
