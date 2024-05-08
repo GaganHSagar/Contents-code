@@ -78,3 +78,43 @@ sentence_transformer = SentenceTransformer(model_name)
 text_embedding = TextEmbedding(model=sentence_transformer)
 
 # Rest of your Langchain code using text_embedding for processing
+
+
+
+from langchain.text_embedding import FastEmbed
+from langchain.text_splitter import SentenceSplitter  # Example TextSplitter (adjust as needed)
+from langchain.llms import VectorstoreIndexer
+
+# ... other imports and connection details
+
+# Define functions for processing PDF and storing data
+def process_pdf(pdf_path):
+  with open(pdf_path, 'rb') as f:
+    reader = PyPDF2.PdfReader(f)
+    text = ""
+    for page in reader.pages:
+      text += page.extract_text()
+  return text
+
+def store_data(embeddings):
+  # Assuming you have logic to store multiple embeddings (adjust based on your database)
+  cursor = conn.cursor()
+  # ... (implementation for storing each embedding in the database)
+  conn.commit()
+  cursor.close()
+
+# Initialize Langchain components
+text_splitter = SentenceSplitter()  # Use SentenceSplitter as an example
+text_embedding = TextEmbedding(model=FastEmbed())
+indexer = VectorstoreIndexer(url=VECTORSTORE_URL, collection="documents")
+
+# Define function for uploading and processing PDF
+def upload_and_process(pdf_file):
+  text = process_pdf(pdf_file.name)
+  sentences = text_splitter.split(text)
+  embeddings = [text_embedding.encode(sentence) for sentence in sentences]
+  store_data(embeddings)  # Assuming logic to store multiple embeddings
+  indexer.add(sentences, embeddings)  # Index each sentence with its embedding
+  return sentences
+
+# ... rest of your code (potentially modifying QnA to handle list of sentences)
